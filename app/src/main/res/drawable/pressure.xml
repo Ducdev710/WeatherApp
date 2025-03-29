@@ -1,0 +1,16 @@
+<!-- pressure.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15.5,13.5h-7c-0.55,0 -1,0.45 -1,1v0c0,0.55 0.45,1 1,1h7c0.55,0 1,-0.45 1,-1v0C16.5,13.95 16.05,13.5 15.5,13.5z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M8.5,10.5h7c0.55,0 1,-0.45 1,-1v0c0,-0.55 -0.45,-1 -1,-1h-7c-0.55,0 -1,0.45 -1,1v0C7.5,10.05 7.95,10.5 8.5,10.5z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,22c5.52,0 10,-4.48 10,-10S17.52,2 12,2S2,6.48 2,12S6.48,22 12,22zM12,4c4.42,0 8,3.58 8,8s-3.58,8 -8,8s-8,-3.58 -8,-8S7.58,4 12,4z"/>
+</vector>
