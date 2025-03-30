@@ -1,4 +1,4 @@
-package com.example.jetpackdemoapp.data.model.Utils
+package com.example.jetpackdemoapp.data.model.utils
 
 
 import android.content.Context

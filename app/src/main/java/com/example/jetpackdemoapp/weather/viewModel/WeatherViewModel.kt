@@ -11,17 +11,16 @@ import com.example.jetpackdemoapp.data.model.model.HourlyForecastResponse
 import com.example.jetpackdemoapp.data.model.model.WeatherResponse
 import com.example.jetpackdemoapp.data.model.repository.WeatherRepository
 import com.example.jetpackdemoapp.weather.screen.GeocodingResult
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class WeatherViewModel(
     private val repository: WeatherRepository,
     private val apiKey: String
 ) : ViewModel() {
 
+    // Current weather data for the actively displayed location
     private val _currentWeatherState = MutableStateFlow<WeatherUiState<WeatherResponse>>(
         WeatherUiState.Loading
     )
@@ -42,11 +41,95 @@ class WeatherViewModel(
     )
     val geocodingState: StateFlow<WeatherUiState<List<GeocodingResult>>> = _geocodingState
 
+    // Separate data specifically for My Location - never overwritten by other locations
+    private val _myLocationWeather = MutableStateFlow<WeatherResponse?>(null)
+    val myLocationWeather: StateFlow<WeatherResponse?> = _myLocationWeather
+
+    private val _myLocationCoordinates = MutableStateFlow<Pair<Double, Double>?>(null)
+    val myLocationCoordinates: StateFlow<Pair<Double, Double>?> = _myLocationCoordinates
+
+    // New - Weather data for My Location only
+    private val _myLocationDailyForecast = MutableStateFlow<DailyForecastResponse?>(null)
+    val myLocationDailyForecast: StateFlow<DailyForecastResponse?> = _myLocationDailyForecast
+
+    // Flag để biết đã có vị trí định vị chưa
+    private val _hasLocationBeenSet = MutableStateFlow(false)
+    val hasLocationBeenSet: StateFlow<Boolean> = _hasLocationBeenSet
+
     @RequiresApi(Build.VERSION_CODES.O)
     fun fetchWeatherData(latitude: Double, longitude: Double) {
         fetchCurrentWeather(latitude, longitude)
         fetchHourlyForecast(latitude, longitude)
         fetchDailyForecast(latitude, longitude)
+    }
+
+    // Sử dụng hàm này khi bạn muốn load dữ liệu cho một vị trí khác không phải My Location
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun fetchWeatherDataForSelectedCity(latitude: Double, longitude: Double) {
+        fetchCurrentWeather(latitude, longitude)
+        fetchHourlyForecast(latitude, longitude)
+        fetchDailyForecast(latitude, longitude)
+    }
+
+    // Sử dụng hàm này khi bạn cập nhật vị trí hiện tại (My Location)
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun updateMyLocationWeather(latitude: Double, longitude: Double) {
+        saveMyLocation(latitude, longitude)
+        fetchMyLocationWeatherData(latitude, longitude)
+        // Also update current display
+        fetchWeatherData(latitude, longitude)
+    }
+
+    // New - Fetch weather for My Location and store separately
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun fetchMyLocationWeatherData(latitude: Double, longitude: Double) {
+        viewModelScope.launch {
+            try {
+                // Get current weather for My Location
+                repository.getCurrentWeather(latitude, longitude, apiKey).collect { result ->
+                    result.fold(
+                        onSuccess = { response ->
+                            _myLocationWeather.value = response
+                        },
+                        onFailure = { error ->
+                            Log.e("WeatherViewModel", "Error fetching My Location current weather", error)
+                        }
+                    )
+                }
+
+                // Get daily forecast for My Location
+                repository.getDailyForecast(latitude, longitude, apiKey, cnt = 40).collect { result ->
+                    result.fold(
+                        onSuccess = { response ->
+                            _myLocationDailyForecast.value = response
+                        },
+                        onFailure = { error ->
+                            Log.e("WeatherViewModel", "Error fetching My Location daily forecast", error)
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("WeatherViewModel", "Exception in fetchMyLocationWeatherData", e)
+            }
+        }
+    }
+
+    fun getMyLocationWeather(): WeatherResponse? {
+        return _myLocationWeather.value
+    }
+
+    fun getMyLocationCoordinates(): Pair<Double, Double>? {
+        return _myLocationCoordinates.value
+    }
+
+    fun getMyLocationDailyForecast(): DailyForecastResponse? {
+        return _myLocationDailyForecast.value
+    }
+
+    // Cập nhật hàm getMyLocation() trong WeatherViewModel
+    fun getMyLocation(): Pair<Double, Double> {
+        // Sử dụng giá trị từ StateFlow đã lưu trữ trước đó
+        return _myLocationCoordinates.value ?: Pair(0.0, 0.0) // Giá trị mặc định nếu chưa có tọa độ
     }
 
     private fun fetchCurrentWeather(latitude: Double, longitude: Double) {
@@ -167,6 +250,23 @@ class WeatherViewModel(
         }
     }
 
+    fun saveMyLocation(latitude: Double, longitude: Double) {
+        viewModelScope.launch {
+            _myLocationCoordinates.value = Pair(latitude, longitude)
+            repository.getCurrentWeather(latitude, longitude, apiKey).collect { result ->
+                result.fold(
+                    onSuccess = { response ->
+                        _myLocationWeather.value = response
+                        _hasLocationBeenSet.value = true
+                    },
+                    onFailure = { error ->
+                        Log.e("WeatherViewModel", "Error fetching My Location weather", error)
+                    }
+                )
+            }
+        }
+    }
+
     // Add to WeatherViewModel
     fun getCurrentWeatherForBottomSheet(latitude: Double, longitude: Double, onResult: (WeatherResponse?) -> Unit) {
         viewModelScope.launch {
@@ -188,6 +288,7 @@ class WeatherViewModel(
             }
         }
     }
+
     fun getDailyForecastForBottomSheet(latitude: Double, longitude: Double, onResult: (DailyForecastResponse?) -> Unit) {
         viewModelScope.launch {
             try {
@@ -208,6 +309,7 @@ class WeatherViewModel(
             }
         }
     }
+
     // Factory class to create ViewModel with parameters
     class Factory(private val repository: WeatherRepository, private val apiKey: String) :
         ViewModelProvider.Factory {

@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.jetpackdemoapp"
-        minSdk = 24
+        minSdk = 25
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -18,6 +18,7 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
     }
 
     buildTypes {
@@ -65,6 +66,7 @@ dependencies {
     implementation(libs.logging.interceptor)
     implementation(libs.play.services.location)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.compose.material)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

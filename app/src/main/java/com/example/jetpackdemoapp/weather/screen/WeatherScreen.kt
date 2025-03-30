@@ -75,9 +75,14 @@ fun WeatherScreen(
     )
     var currentScreen by remember { mutableStateOf("location") }
 
+    // Lưu vị trí ban đầu (My Location) tách biệt
+    val initialLatitude = remember { latitude }
+    val initialLongitude = remember { longitude }
+
     // Track current location coordinates (in case they change via menu)
     var currentLatitude by remember { mutableStateOf(latitude) }
     var currentLongitude by remember { mutableStateOf(longitude) }
+    var isMyLocation by remember { mutableStateOf(true) } // Ban đầu vị trí đầu tiên là My Location
 
     // Context for location services
     val context = LocalContext.current
@@ -122,10 +127,15 @@ fun WeatherScreen(
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         val locationListener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
-                currentLatitude = location.latitude
-                currentLongitude = location.longitude
+                if (isMyLocation) {
+                    currentLatitude = location.latitude
+                    currentLongitude = location.longitude
+
+                    viewModel.saveMyLocation(location.latitude, location.longitude)
+                }
             }
 
+            @Deprecated("Deprecated in Java")
             override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
             override fun onProviderEnabled(provider: String) {}
             override fun onProviderDisabled(provider: String) {}
@@ -144,10 +154,18 @@ fun WeatherScreen(
                 locationListener
             )
         }
+
+        // Lưu vị trí ban đầu là My Location
+        viewModel.saveMyLocation(initialLatitude, initialLongitude)
     }
+
     // Request data when location changes
     LaunchedEffect(currentLatitude, currentLongitude) {
-        viewModel.fetchWeatherData(currentLatitude, currentLongitude)
+        if (isMyLocation) {
+            viewModel.updateMyLocationWeather(currentLatitude, currentLongitude)
+        } else {
+            viewModel.fetchWeatherDataForSelectedCity(currentLatitude, currentLongitude)
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -262,12 +280,22 @@ fun WeatherScreen(
             exit = fadeOut(tween(300))
         ) {
             MenuScreen(
-                currentLatitude = currentLatitude,
-                currentLongitude = currentLongitude,
+                currentLatitude = viewModel.getMyLocation().first,  // Use MyLocation coordinates
+                currentLongitude = viewModel.getMyLocation().second,
                 viewModel = viewModel,
-                onLocationSelect = { lat, lon ->
-                    currentLatitude = lat
-                    currentLongitude = lon
+                onLocationSelect = { lat, lon, isCurrentLocation ->
+                    if (isCurrentLocation) {
+                        // Nếu chọn My Location, sử dụng tọa độ My Location hiện tại
+                        val myLocation = viewModel.getMyLocation()
+                        currentLatitude = myLocation.first
+                        currentLongitude = myLocation.second
+                        isMyLocation = true
+                    } else {
+                        // Nếu chọn thành phố khác
+                        currentLatitude = lat
+                        currentLongitude = lon
+                        isMyLocation = false
+                    }
                     currentScreen = "location"
                 }
             )

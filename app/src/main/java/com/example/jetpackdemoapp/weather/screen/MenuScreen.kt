@@ -24,33 +24,37 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DismissValue
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,7 +64,6 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -71,16 +74,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import com.example.jetpackdemoapp.R
-import com.example.jetpackdemoapp.data.model.Utils.LocationPreferences
 import com.example.jetpackdemoapp.data.model.model.WeatherResponse
-import com.example.jetpackdemoapp.weather.viewModel.WeatherUiState
+import com.example.jetpackdemoapp.data.model.utils.LocationPreferences
 import com.example.jetpackdemoapp.weather.viewModel.WeatherViewModel
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
-import kotlin.random.Random
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -88,24 +89,18 @@ fun MenuScreen(
     currentLatitude: Double,
     currentLongitude: Double,
     viewModel: WeatherViewModel,
-    onLocationSelect: (Double, Double) -> Unit
+    onLocationSelect: (Double, Double, Boolean) -> Unit
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
     val locationPreferences = remember { LocationPreferences(context) }
 
-    // Get current weather state to use real weather data
-    val currentWeatherState by viewModel.currentWeatherState.collectAsState()
-    val dailyForecastState by viewModel.dailyForecastState.collectAsState()
-
     // Store weather data for each location
     val locationWeatherData = remember { mutableStateMapOf<String, LocationWeatherData?>() }
 
-    // Remember the current location coordinates
-    val myLocationCoordinates = remember {
-        Pair(currentLatitude, currentLongitude)
-    }
+    // Get My Location coordinates from ViewModel instead of parameters
+    val myLocationCoordinates = viewModel.getMyLocation()
 
     // Track saved locations - load from preferences
     val savedLocations = remember {
@@ -119,29 +114,38 @@ fun MenuScreen(
 
     // Save locations when they change (except the current location)
     LaunchedEffect(savedLocations.size) {
-        // Skip saving if only the current location exists
         if (savedLocations.size > 1) {
             locationPreferences.saveLocations(savedLocations)
         }
     }
 
-    // Get real weather data for current location
-    LaunchedEffect(currentWeatherState, dailyForecastState) {
-        if (currentWeatherState is WeatherUiState.Success && dailyForecastState is WeatherUiState.Success) {
-            val weather = (currentWeatherState as WeatherUiState.Success<WeatherResponse>).data
-            val forecasts = (dailyForecastState as WeatherUiState.Success<DailyForecastResponse>).data
+    // Get My Location weather data directly from ViewModel
+    val myLocationWeather by viewModel.myLocationWeather.collectAsState()
 
-            // Calculate min/max temps from daily forecast
-            val todayForecasts = forecasts.list.filter {
-                val date = LocalDateTime.ofEpochSecond(it.dt, 0, ZoneOffset.UTC)
-                date.toLocalDate() == LocalDateTime.now().toLocalDate()
-            }
+    // Update My Location data when available
+    LaunchedEffect(myLocationWeather) {
+        myLocationWeather?.let { weather ->
+            // Get the daily forecast for My Location from ViewModel
+            val myLocationForecast = viewModel.getMyLocationDailyForecast()
 
-            val minTemp = todayForecasts.minOfOrNull { it.main.temp_min }?.toInt()
-                ?: weather.main.temp_min.toInt()
-            val maxTemp = todayForecasts.maxOfOrNull { it.main.temp_max }?.toInt()
-                ?: weather.main.temp_max.toInt()
+            // Calculate min/max temps from forecast if available
+            val minTemp = myLocationForecast?.list?.let { list ->
+                val todayForecasts = list.filter {
+                    val date = LocalDateTime.ofEpochSecond(it.dt, 0, ZoneOffset.UTC)
+                    date.toLocalDate() == LocalDateTime.now().toLocalDate()
+                }
+                todayForecasts.minOfOrNull { it.main.temp_min }?.toInt()
+            } ?: weather.main.temp_min.toInt()
 
+            val maxTemp = myLocationForecast?.list?.let { list ->
+                val todayForecasts = list.filter {
+                    val date = LocalDateTime.ofEpochSecond(it.dt, 0, ZoneOffset.UTC)
+                    date.toLocalDate() == LocalDateTime.now().toLocalDate()
+                }
+                todayForecasts.maxOfOrNull { it.main.temp_max }?.toInt()
+            } ?: weather.main.temp_max.toInt()
+
+            // Update My Location weather data
             locationWeatherData["My Location"] = LocationWeatherData(
                 currentTemp = weather.main.temp.toInt(),
                 highTemp = maxTemp,
@@ -209,7 +213,7 @@ fun MenuScreen(
             )
             .padding(16.dp)
     ) {
-        // Title
+        // Title and remaining UI elements stay the same
         Text(
             text = "Weather",
             fontSize = 28.sp,
@@ -230,8 +234,8 @@ fun MenuScreen(
                 if (savedLocations.none { it.latitude == lat && it.longitude == lon }) {
                     savedLocations.add(SavedLocation(name, lat, lon))
                 }
-                // Navigate to weather for selected location
-                onLocationSelect(lat, lon)
+                // Navigate to weather for selected location - not a current location
+                onLocationSelect(lat, lon, false)
                 searchQuery = ""
                 isSearching = false
             },
@@ -250,27 +254,42 @@ fun MenuScreen(
 
             LazyColumn {
                 items(savedLocations) { location ->
-                    LocationItem(
-                        location = location,
-                        weatherData = locationWeatherData[location.name],
-                        onClick = {
-                            // Navigate to weather screen for this location
-                            onLocationSelect(location.latitude, location.longitude)
-
-                            // Always keep My Location at index 0 with device coordinates
-                            val myLocationIndex = savedLocations.indexOfFirst { it.isCurrentLocation }
-                            if (myLocationIndex != -1) {
-                                // Update My Location if needed
-                                val updatedMyLocation = SavedLocation(
-                                    "My Location",
-                                    myLocationCoordinates.first,
-                                    myLocationCoordinates.second,
+                    if (location.isCurrentLocation) {
+                        // Regular item for My Location (no swipe to delete)
+                        LocationItem(
+                            location = location,
+                            weatherData = locationWeatherData[location.name],
+                            onClick = {
+                                onLocationSelect(
+                                    location.latitude,
+                                    location.longitude,
                                     true
                                 )
-                                savedLocations[myLocationIndex] = updatedMyLocation
                             }
-                        }
-                    )
+                        )
+                    } else {
+                        // Swipe to delete for saved cities
+                        SwipeToDeleteLocationItem(
+                            location = location,
+                            weatherData = locationWeatherData[location.name],
+                            onClick = {
+                                onLocationSelect(
+                                    location.latitude,
+                                    location.longitude,
+                                    false
+                                )
+                            },
+                            onDelete = {
+                                // Remove from saved locations
+                                savedLocations.remove(location)
+                                // Remove from weather data map
+                                locationWeatherData.remove(location.name)
+                                // Notify user
+                                Toast.makeText(context, "${location.name} removed", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
@@ -756,6 +775,69 @@ fun WeatherDetail(icon: Int, value: String, label: String) {
         )
     }
 }
+
+@RequiresApi(Build.VERSION_CODES.O)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToDeleteLocationItem(
+    location: SavedLocation,
+    weatherData: LocationWeatherData?,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        positionalThreshold = { totalDistance -> totalDistance * 0.5f },
+        confirmValueChange = { dismissValue ->
+            if (dismissValue == SwipeToDismissBoxValue.StartToEnd) {
+                onDelete()
+                true
+            } else {
+                false
+            }
+        }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = false,
+        backgroundContent = {
+            // Match the card dimensions exactly by using the same modifiers
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)  // Same padding as in LocationItem
+                    .background(Color.Red.copy(alpha = 0.8f), RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 16.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Delete",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        content = {
+            LocationItem(
+                location = location,
+                weatherData = weatherData,
+                onClick = onClick
+            )
+        }
+    )
+}
+
 // Data class to represent a saved location
 data class SavedLocation(
     val name: String,
