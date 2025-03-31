@@ -1,6 +1,7 @@
 package com.example.jetpackdemoapp.weather.screen
 
 import DailyForecastResponse
+import android.annotation.SuppressLint
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
@@ -38,7 +39,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DismissValue
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -83,13 +83,12 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
+@SuppressLint("DefaultLocale")
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun MenuScreen(
-    currentLatitude: Double,
-    currentLongitude: Double,
     viewModel: WeatherViewModel,
-    onLocationSelect: (Double, Double, Boolean) -> Unit
+    onLocationSelect: (Double, Double, Boolean, String?) -> Unit
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
@@ -165,6 +164,19 @@ fun MenuScreen(
                 // Get current weather for this location
                 viewModel.getCurrentWeatherForBottomSheet(location.latitude, location.longitude) { currentWeather ->
                     if (currentWeather != null) {
+                        // Extract timezone information from the API response
+                        val timezoneSeconds = currentWeather.timezone ?: 0
+                        // Convert timezone offset from seconds to ZoneId format
+                        val offsetHours = timezoneSeconds / 3600
+                        val offsetMinutes = (Math.abs(timezoneSeconds) % 3600) / 60
+                        val sign = if (offsetHours >= 0) "+" else "-"
+                        val formattedHours = String.format("%02d", Math.abs(offsetHours))
+                        val formattedMinutes = String.format("%02d", offsetMinutes)
+                        val timezoneId = "UTC$sign$formattedHours:$formattedMinutes"
+
+                        // Update the location with timezone info
+                        location.timezone = timezoneId
+
                         // Get forecast for accurate min/max temps
                         viewModel.getDailyForecastForBottomSheet(location.latitude, location.longitude) { forecast ->
                             if (forecast != null) {
@@ -235,7 +247,7 @@ fun MenuScreen(
                     savedLocations.add(SavedLocation(name, lat, lon))
                 }
                 // Navigate to weather for selected location - not a current location
-                onLocationSelect(lat, lon, false)
+                onLocationSelect(lat, lon, false, null)
                 searchQuery = ""
                 isSearching = false
             },
@@ -263,7 +275,8 @@ fun MenuScreen(
                                 onLocationSelect(
                                     location.latitude,
                                     location.longitude,
-                                    true
+                                    location.isCurrentLocation,
+                                    location.timezone  // Pass the timezone to the navigation function
                                 )
                             }
                         )
@@ -276,7 +289,8 @@ fun MenuScreen(
                                 onLocationSelect(
                                     location.latitude,
                                     location.longitude,
-                                    false
+                                    location.isCurrentLocation,
+                                    location.timezone  // Pass the timezone to the navigation function
                                 )
                             },
                             onDelete = {
@@ -303,14 +317,22 @@ fun LocationItem(
     weatherData: LocationWeatherData?,
     onClick: () -> Unit
 ) {
-    val now = LocalDateTime.now(
-        if (location.isCurrentLocation)
-            ZoneId.systemDefault()
-        else
-            ZoneId.of("UTC") // In a real app, get proper timezone for location
-    )
-    val formatter = DateTimeFormatter.ofPattern("HH:mm")
-    val currentTime = now.format(formatter)
+    // Get current time in the location's timezone
+    val currentTime = remember(location.timezone) {
+        try {
+            val zoneId = when {
+                location.isCurrentLocation -> ZoneId.systemDefault()
+                location.timezone != null -> ZoneId.of(location.timezone)
+                else -> ZoneId.systemDefault() // Fallback
+            }
+
+            val formatter = DateTimeFormatter.ofPattern("HH:mm")
+            LocalDateTime.now(zoneId).format(formatter)
+        } catch (e: Exception) {
+            // In case of any timezone parsing errors
+            LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -322,6 +344,7 @@ fun LocationItem(
         ),
         shape = RoundedCornerShape(8.dp),
     ) {
+        // Rest of the card content remains unchanged
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -802,29 +825,35 @@ fun SwipeToDeleteLocationItem(
         enableDismissFromStartToEnd = true,
         enableDismissFromEndToStart = false,
         backgroundContent = {
-            // Match the card dimensions exactly by using the same modifiers
-            Box(
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp)  // Same padding as in LocationItem
-                    .background(Color.Red.copy(alpha = 0.8f), RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.CenterStart
+                    .padding(vertical = 8.dp), // Identical padding as the content card
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.Red.copy(alpha = 0.8f)
+                ),
+                shape = RoundedCornerShape(8.dp), // Same corner radius
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(start = 16.dp)
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.CenterStart
                 ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete",
-                        tint = Color.White
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Delete",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 16.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Delete",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         },
@@ -843,7 +872,8 @@ data class SavedLocation(
     val name: String,
     val latitude: Double,
     val longitude: Double,
-    val isCurrentLocation: Boolean = false
+    val isCurrentLocation: Boolean = false,
+    var timezone: String? = null  // Store timezone identifier or offset
 )
 
 // Data class to represent weather data for a location

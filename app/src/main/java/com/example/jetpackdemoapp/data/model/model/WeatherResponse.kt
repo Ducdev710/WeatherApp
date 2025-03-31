@@ -10,6 +10,7 @@ data class WeatherResponse(
     val sys: Sys?,
     val hourly: List<HourlyWeather>,
     val daily: List<FutureWeather>,
+    val timezone: Int
 )
 
 data class Main(

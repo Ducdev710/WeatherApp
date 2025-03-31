@@ -47,7 +47,6 @@ import com.example.jetpackdemoapp.data.model.model.WeatherResponse
 import com.example.jetpackdemoapp.data.model.service.RetrofitInstance
 import com.example.jetpackdemoapp.weather.components.DetailItem
 import com.example.jetpackdemoapp.weather.components.FutureItem
-import com.example.jetpackdemoapp.weather.components.FutureModelViewHolder
 import com.example.jetpackdemoapp.weather.components.HourlyItem
 import com.example.jetpackdemoapp.weather.components.WeatherDetailItem
 import com.example.jetpackdemoapp.weather.components.dailyItems
@@ -58,6 +57,7 @@ import com.example.jetpackdemoapp.weather.viewModel.WeatherUiState
 import com.example.jetpackdemoapp.weather.viewModel.WeatherViewModel
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.*
@@ -67,7 +67,9 @@ import java.util.*
 @Composable
 fun WeatherScreen(
     latitude: Double,
-    longitude: Double
+    longitude: Double,
+    isCurrentLocation: Boolean = true,
+    timezone: String? = null
 ) {
     val factory = WeatherViewModel.Factory(
         repository = RetrofitInstance.weatherRepository,
@@ -82,7 +84,8 @@ fun WeatherScreen(
     // Track current location coordinates (in case they change via menu)
     var currentLatitude by remember { mutableStateOf(latitude) }
     var currentLongitude by remember { mutableStateOf(longitude) }
-    var isMyLocation by remember { mutableStateOf(true) } // Ban đầu vị trí đầu tiên là My Location
+    var isMyLocation by remember { mutableStateOf(isCurrentLocation) }
+    var currentTimezone by remember { mutableStateOf(timezone) }
 
     // Context for location services
     val context = LocalContext.current
@@ -118,9 +121,24 @@ fun WeatherScreen(
     val hourlyForecastState by viewModel.hourlyForecastState.collectAsState()
     val dailyForecastState by viewModel.dailyForecastState.collectAsState()
 
-    val currentDateTime = LocalDateTime.now()
-    val formatter = DateTimeFormatter.ofPattern("EEE MMM dd | HH:mm a")
-    val formattedDateTime = currentDateTime.format(formatter)
+    // Get the correct local time based on the timezone
+    val formattedDateTime = remember(currentTimezone) {
+        try {
+            val zoneId = when {
+                isMyLocation -> ZoneId.systemDefault()
+                currentTimezone != null -> ZoneId.of(currentTimezone)
+                else -> ZoneId.systemDefault()
+            }
+
+            val localDateTime = LocalDateTime.now(zoneId)
+            val formatter = DateTimeFormatter.ofPattern("EEE MMM dd | HH:mm a")
+            localDateTime.format(formatter)
+        } catch (e: Exception) {
+            // Fallback to system time if there's an error with timezone
+            val formatter = DateTimeFormatter.ofPattern("EEE MMM dd | HH:mm a")
+            LocalDateTime.now().format(formatter)
+        }
+    }
 
     LaunchedEffect(Unit) {
         // Set up location updates
@@ -165,6 +183,20 @@ fun WeatherScreen(
             viewModel.updateMyLocationWeather(currentLatitude, currentLongitude)
         } else {
             viewModel.fetchWeatherDataForSelectedCity(currentLatitude, currentLongitude)
+
+            // Get timezone info for selected city
+            viewModel.getCurrentWeatherForBottomSheet(currentLatitude, currentLongitude) { weatherResponse ->
+                if (weatherResponse != null && weatherResponse.timezone != null) {
+                    val timezoneSeconds = weatherResponse.timezone
+                    val offsetHours = timezoneSeconds / 3600
+                    val offsetMinutes = (Math.abs(timezoneSeconds) % 3600) / 60
+                    val sign = if (offsetHours >= 0) "+" else "-"
+                    val formattedHours = String.format("%02d", Math.abs(offsetHours))
+                    val formattedMinutes = String.format("%02d", offsetMinutes)
+                    val timezoneId = "UTC$sign$formattedHours:$formattedMinutes"
+                    currentTimezone = timezoneId
+                }
+            }
         }
     }
 
@@ -280,21 +312,22 @@ fun WeatherScreen(
             exit = fadeOut(tween(300))
         ) {
             MenuScreen(
-                currentLatitude = viewModel.getMyLocation().first,  // Use MyLocation coordinates
-                currentLongitude = viewModel.getMyLocation().second,
+                // Use MyLocation coordinates
                 viewModel = viewModel,
-                onLocationSelect = { lat, lon, isCurrentLocation ->
+                onLocationSelect = { lat, lon, isCurrentLocation, locationTimezone ->
                     if (isCurrentLocation) {
                         // Nếu chọn My Location, sử dụng tọa độ My Location hiện tại
                         val myLocation = viewModel.getMyLocation()
                         currentLatitude = myLocation.first
                         currentLongitude = myLocation.second
                         isMyLocation = true
+                        currentTimezone = null
                     } else {
                         // Nếu chọn thành phố khác
                         currentLatitude = lat
                         currentLongitude = lon
                         isMyLocation = false
+                        currentTimezone = locationTimezone
                     }
                     currentScreen = "location"
                 }
@@ -565,7 +598,7 @@ private fun WeatherContent(
                         modifier = Modifier.weight(1f)
                     )
                     Text(
-                        text = "Next 7 days >>",
+                        text = "Next 5 days >>",
                         fontSize = 14.sp,
                         color = Color.White,
                         fontWeight = FontWeight.Bold
@@ -601,7 +634,33 @@ private fun calculateDewPoint(tempC: Double, humidity: Int): Double {
 // Update this function to match the correct structure of your API response
 @RequiresApi(Build.VERSION_CODES.O)
 private fun processHourlyForecast(hourlyList: List<HourlyForecastResponse.ListItem>): List<HourlyWeather> {
-    return hourlyList.take(5).map { hourly ->
+    // Get current time in seconds
+    val currentTimeSeconds = System.currentTimeMillis() / 1000
+
+    // Log current time for debugging
+    Log.d("WeatherScreen", "Current time: ${LocalDateTime.ofEpochSecond(currentTimeSeconds, 0, ZoneOffset.UTC)}")
+
+    // 1. First sort all forecasts by time
+    val sortedForecasts = hourlyList.sortedBy { it.dt }
+
+    // 2. Find the forecast closest to current time (could be slightly in past or future)
+    val closestForecastIndex = sortedForecasts.indexOfFirst { it.dt > currentTimeSeconds }
+        .takeIf { it >= 0 } ?: 0
+
+    // 3. Take 5 forecasts starting from the closest one
+    val selectedForecasts = if (closestForecastIndex + 5 <= sortedForecasts.size) {
+        sortedForecasts.subList(closestForecastIndex, closestForecastIndex + 5)
+    } else {
+        sortedForecasts.subList(closestForecastIndex, sortedForecasts.size)
+    }
+
+    // Log selected forecasts
+    selectedForecasts.forEach { forecast ->
+        val forecastTime = LocalDateTime.ofEpochSecond(forecast.dt, 0, ZoneOffset.UTC)
+        Log.d("WeatherScreen", "Selected forecast time: $forecastTime")
+    }
+
+    return selectedForecasts.map { hourly ->
         HourlyWeather(
             dt = hourly.dt,
             temp = hourly.main.temp,
@@ -610,7 +669,6 @@ private fun processHourlyForecast(hourlyList: List<HourlyForecastResponse.ListIt
         )
     }
 }
-
 /**
  * Processes the daily forecast data from API response
  * @param dailyForecast daily forecast response from API
@@ -621,22 +679,20 @@ private fun processDailyForecast(dailyForecast: DailyForecastResponse): List<Fut
     // Get today's date
     val today = LocalDate.now()
 
-    // Debug the raw data
     Log.d("WeatherScreen", "Raw forecast data received with ${dailyForecast.list.size} items")
 
-    // First group the forecast items by day
+    // Group the forecast items by day
     val groupedByDay = dailyForecast.list.groupBy { item ->
-        val forecastDate = LocalDateTime.ofEpochSecond(item.dt.toLong(), 0, ZoneOffset.UTC).toLocalDate()
-        forecastDate
+        LocalDateTime.ofEpochSecond(item.dt.toLong(), 0, ZoneOffset.UTC).toLocalDate()
     }.toSortedMap() // Sort by date
 
     Log.d("WeatherScreen", "Grouped into ${groupedByDay.size} unique days")
 
-    // Extract at most 7 days (today + next 6 days)
-    val next7Days = groupedByDay.keys.filter { it >= today }.take(7)
+    // Extract at most 6 days (today + next 5 days) instead of 7
+    val next6Days = groupedByDay.keys.filter { it >= today }.take(6)
 
     // Create a FutureWeather object for each day
-    return next7Days.map { date ->
+    return next6Days.map { date ->
         val items = groupedByDay[date] ?: emptyList()
 
         // Get min and max temperatures for the day
@@ -664,10 +720,10 @@ private fun processDailyForecast(dailyForecast: DailyForecastResponse): List<Fut
             lowTemp = minTemp
         )
     }.let { result ->
-        // If we have fewer than 7 days, add placeholders to fill the gap
-        if (result.size < 7) {
-            Log.d("WeatherScreen", "Adding ${7 - result.size} placeholder days")
-            val placeholders = (result.size until 7).map { offset ->
+        // If we have fewer than 6 days, add placeholders to fill the gap
+        if (result.size < 6) {
+            Log.d("WeatherScreen", "Adding ${6 - result.size} placeholder days")
+            val placeholders = (result.size until 6).map { offset ->
                 val futureDate = today.plusDays(offset.toLong())
                 val dayName = futureDate.format(DateTimeFormatter.ofPattern("EEE"))
                 FutureWeather(
