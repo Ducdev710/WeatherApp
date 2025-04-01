@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.wear.compose.material.Button
 import com.example.jetpackdemoapp.R
 import com.example.jetpackdemoapp.data.model.model.FutureWeather
 import com.example.jetpackdemoapp.data.model.model.HourlyForecastResponse
@@ -333,7 +334,6 @@ fun WeatherScreen(
                 }
             )
         }
-
         // Animated Bottom Navigation
         Box(
             modifier = Modifier

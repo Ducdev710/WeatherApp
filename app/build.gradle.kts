@@ -61,6 +61,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
 
+
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
     implementation(libs.logging.interceptor)
@@ -83,5 +84,8 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.gson)
+
+    //WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
 
 }

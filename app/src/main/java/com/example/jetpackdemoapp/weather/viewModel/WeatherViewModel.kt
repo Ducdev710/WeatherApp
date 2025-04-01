@@ -1,7 +1,10 @@
 package com.example.jetpackdemoapp.weather.viewModel
 
 import DailyForecastResponse
+import android.app.Application
+import android.content.Context
 import android.os.Build
+import android.provider.Settings.Secure.putFloat
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
@@ -307,6 +310,26 @@ class WeatherViewModel(
                 Log.e("WeatherViewModel", "Exception in getDailyForecastForBottomSheet", e)
                 onResult(null)
             }
+        }
+    }
+    // Add to WeatherViewModel
+    // Add to WeatherViewModel
+    fun saveLocationForNotifications(context: Context) {
+        val coordinates = _myLocationCoordinates.value
+        if (coordinates == null) {
+            Log.e("WeatherViewModel", "No saved location coordinates")
+            return
+        }
+
+        val latitude = coordinates.first
+        val longitude = coordinates.second
+
+        // Save coordinates to SharedPreferences for the Worker to access
+        val sharedPreferences = context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
+        sharedPreferences.edit().apply {
+            putFloat("saved_latitude", latitude.toFloat())
+            putFloat("saved_longitude", longitude.toFloat())
+            apply()
         }
     }
 
