@@ -28,7 +28,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.example.jetpackdemoapp.data.model.service.RetrofitInstance
+import com.example.jetpackdemoapp.notification.WeatherNotificationWorker
 import com.example.jetpackdemoapp.notification.WeatherWorkScheduler
 import com.example.jetpackdemoapp.ui.theme.JetpackDemoAppTheme
 import com.example.jetpackdemoapp.weather.screen.WeatherScreen
@@ -76,41 +79,52 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                locationState?.let {
-                    WeatherScreen(it.latitude, it.longitude)
-                }
-
-                /*Column {
-                    // Button row for testing notifications
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Test immediate notification
-                        Button(
-                            onClick = { sendTestNotification() },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Test Now")
-                        }
-
-                        // Test 5-minute periodic notifications
-                        Button(
-                            onClick = {
-                                testShortIntervalNotification()
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Test 5min")
-                        }
-                    }
-
+                Column {
                     locationState?.let {
                         WeatherScreen(it.latitude, it.longitude)
                     }
-                }*/
+                }
+
+//                // Add a debug button to your MainActivity UI to show saved location
+//                Column {
+//                    Row(
+//                        modifier = Modifier.padding(16.dp),
+//                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+//                    ) {
+//                        // Test immediate notification
+//                        Button(
+//                            onClick = { sendTestNotification() },
+//                            modifier = Modifier.weight(1f)
+//                        ) {
+//                            Text("Test Now")
+//                        }
+//
+//                        // Check saved location
+//                        Button(
+//                            onClick = { checkSavedLocation() },
+//                            modifier = Modifier.weight(1f)
+//                        ) {
+//                            Text("Check Location")
+//                        }
+//                    }
+//
+//                    locationState?.let {
+//                        WeatherScreen(it.latitude, it.longitude)
+//                    }
+//                }
             }
         }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    override fun onResume() {
+        super.onResume()
+        saveCurrentLocation()
+        // Also adjust the notification title in the WeatherNotificationWorker
+        getSharedPreferences("worker_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("notification_title", "Today's Weather Forecast")
+            .apply()
     }
 
     private val requestPermissionLauncher = registerForActivityResult(
@@ -188,5 +202,61 @@ class MainActivity : ComponentActivity() {
             "Scheduled test notification for 1 minute from now",
             Toast.LENGTH_LONG
         ).show()
+    }
+    @SuppressLint("MissingPermission")
+    private fun saveCurrentLocation() {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                location?.let {
+                    val sharedPrefs = getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
+                    sharedPrefs.edit()
+                        .putFloat("saved_latitude", it.latitude.toFloat())
+                        .putFloat("saved_longitude", it.longitude.toFloat())
+                        .apply()
+
+                    Log.d("MainActivity", "Saved location: ${it.latitude}, ${it.longitude}")
+                }
+            }
+        }
+    }
+    private fun checkSavedLocation() {
+        val sharedPrefs = getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
+        val lat = sharedPrefs.getFloat("saved_latitude", 0f)
+        val lon = sharedPrefs.getFloat("saved_longitude", 0f)
+
+        Toast.makeText(
+            this,
+            "Saved location: $lat, $lon",
+            Toast.LENGTH_LONG
+        ).show()
+
+        Log.d("MainActivity", "Testing weather notification with saved location: $lat, $lon")
+
+        // Create data with isTest flag to avoid any location permission issues
+        val inputData = androidx.work.Data.Builder()
+            .putBoolean("isTest", false) // Requesting real weather data
+            .build()
+
+        val workRequest = OneTimeWorkRequestBuilder<WeatherNotificationWorker>()
+            .setInputData(inputData)
+            .build()
+
+        WorkManager.getInstance(this).enqueue(workRequest)
+
+        Toast.makeText(
+            this,
+            "Weather notification requested, check notification area",
+            Toast.LENGTH_SHORT
+        ).show()
+
+        // For additional debugging, check API key validity
+        val apiKeyPrefix = if (WeatherNotificationWorker.API_KEY.length > 5)
+            WeatherNotificationWorker.API_KEY.substring(0, 5) + "..."
+        else "invalid"
+        Log.d("MainActivity", "Weather API key prefix: $apiKeyPrefix")
     }
 }

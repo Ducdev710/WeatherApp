@@ -16,6 +16,14 @@ interface WeatherService {
         @Query("units") units: String = "metric"
     ): WeatherResponse
 
+    @GET("data/2.5/weather")
+    suspend fun getCurrentWeatherDirect(
+        @Query("lat") latitude: Double,
+        @Query("lon") longitude: Double,
+        @Query("units") units: String,
+        @Query("appid") apiKey: String
+    ): WeatherResponse
+
     @GET("data/2.5/forecast")
     suspend fun getHourlyWeather(
         @Query("lat") latitude: Double,
