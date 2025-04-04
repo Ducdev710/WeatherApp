@@ -11,7 +11,7 @@ Các chức năng cơ bản:
 1. Ngôn ngữ: Kotlin
 2. Framework: Jetpack Compose
 3. Mô hình: MVVM
-4. Lưu trữ dữ liệu: SharedPreferences, StateFlow
+4. Lưu trữ dữ liệu: SharedPreferences
 5. Networking: Retrofit, OpenWeatherMap API
 6. Vị trí và bản đồ: Google Play Services Location, OpenStreetMap
 7. Gửi thông báo: WorkManager
