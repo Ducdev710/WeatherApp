@@ -9,7 +9,7 @@ Các chức năng cơ bản:
 # Hình ảnh giao diện:
 # Công nghệ sử dụng:
 1. Ngôn ngữ: Kotlin
-2. FrameWork: Jetpack Compose
+2. Framework: Jetpack Compose
 3. Mô hình: MVVM
 4. Lưu trữ dữ liệu: SharedPreferences, StateFlow
 5. Networking: Retrofit, OpenWeatherMap API
