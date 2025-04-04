@@ -59,6 +59,33 @@ class WeatherViewModel(
     private val _hasLocationBeenSet = MutableStateFlow(false)
     val hasLocationBeenSet: StateFlow<Boolean> = _hasLocationBeenSet
 
+    // Add permission state management
+    private val _permissionFlowState = MutableStateFlow(PermissionFlowState.INITIAL)
+    val permissionFlowState: StateFlow<PermissionFlowState> = _permissionFlowState
+
+    enum class PermissionFlowState {
+        INITIAL,
+        NOTIFICATION_GRANTED,
+        LOCATION_REQUESTED,
+        ALL_GRANTED
+    }
+
+    // Save state to SharedPreferences when permissions change
+    fun savePermissionState(context: Context, state: PermissionFlowState) {
+        _permissionFlowState.value = state
+        context.getSharedPreferences("permissions_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("permission_flow_state", state.name)
+            .apply()
+    }
+
+    // Restore permission state on app start
+    fun restorePermissionState(context: Context) {
+        val savedState = context.getSharedPreferences("permissions_prefs", Context.MODE_PRIVATE)
+            .getString("permission_flow_state", PermissionFlowState.INITIAL.name)
+        _permissionFlowState.value = PermissionFlowState.valueOf(savedState ?: "INITIAL")
+    }
+
     @RequiresApi(Build.VERSION_CODES.O)
     fun fetchWeatherData(latitude: Double, longitude: Double) {
         fetchCurrentWeather(latitude, longitude)

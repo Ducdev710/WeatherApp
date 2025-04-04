@@ -42,25 +42,53 @@ import com.google.android.gms.location.LocationServices
 class MainActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var location: Location? = null
+    private lateinit var weatherViewModel: WeatherViewModel
+
+    // Permission state constants
+    private enum class PermissionState {
+        INITIAL,
+        NOTIFICATION_GRANTED,
+        LOCATION_REQUESTED,
+        ALL_GRANTED
+    }
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        /// Initialize ViewModel
+        weatherViewModel = ViewModelProvider(
+            this,
+            WeatherViewModel.Factory(RetrofitInstance.weatherRepository, "7a85369669e56294a7779bb9f8be8563")
+        )[WeatherViewModel::class.java]
+
         // Use the regular scheduler for production
         WeatherWorkScheduler.scheduleDailyWeatherNotification(this)
 
-        // Request notification permission for Android 13+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        // Initialize location client
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        // Restore permission state
+        val permissionState = restorePermissionState()
+
+        // Based on current permission state, request appropriate permissions
+        when (permissionState) {
+            PermissionState.INITIAL -> {
+                requestNotificationPermission()
+            }
+            PermissionState.NOTIFICATION_GRANTED -> {
+                requestLocationPermission()
+            }
+            PermissionState.LOCATION_REQUESTED, PermissionState.ALL_GRANTED -> {
+                // Continue with location if granted
+                if (ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    saveCurrentLocation()
+                }
             }
         }
-
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         setContent {
             JetpackDemoAppTheme {
@@ -70,15 +98,14 @@ class MainActivity : ComponentActivity() {
                     if (ContextCompat.checkSelfPermission(
                             this@MainActivity,
                             Manifest.permission.ACCESS_FINE_LOCATION
-                        ) != PackageManager.PERMISSION_GRANTED
+                        ) == PackageManager.PERMISSION_GRANTED
                     ) {
-                        requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                    } else {
                         getLastLocation { loc ->
                             locationState = loc
                         }
                     }
                 }
+
                 Column {
                     locationState?.let {
                         WeatherScreen(it.latitude, it.longitude)
@@ -127,38 +154,103 @@ class MainActivity : ComponentActivity() {
             .apply()
     }
 
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                savePermissionState(PermissionState.INITIAL)
+                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                savePermissionState(PermissionState.NOTIFICATION_GRANTED)
+                requestLocationPermission()
+            }
+        } else {
+            // No notification permission needed on older Android versions
+            savePermissionState(PermissionState.NOTIFICATION_GRANTED)
+            requestLocationPermission()
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun requestLocationPermission() {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            savePermissionState(PermissionState.LOCATION_REQUESTED)
+            requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        } else {
+            savePermissionState(PermissionState.ALL_GRANTED)
             getLastLocation { loc ->
                 location = loc
             }
         }
     }
+    @RequiresApi(Build.VERSION_CODES.O)
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            savePermissionState(PermissionState.ALL_GRANTED)
+            getLastLocation { loc ->
+                location = loc
 
+                // Force refresh the UI with the new location
+                runOnUiThread {
+                    setContent {
+                        JetpackDemoAppTheme {
+                            WeatherScreen(loc.latitude, loc.longitude)
+                        }
+                    }
+                }
+
+                // Save for notifications
+                val sharedPrefs = getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
+                sharedPrefs.edit()
+                    .putFloat("saved_latitude", loc.latitude.toFloat())
+                    .putFloat("saved_longitude", loc.longitude.toFloat())
+                    .apply()
+
+                Log.d("MainActivity", "Permission granted and location loaded: ${loc.latitude}, ${loc.longitude}")
+            }
+        } else {
+            // Handle permission denied
+            Log.d("MainActivity", "Location permission denied")
+
+            // Show a message to the user
+            Toast.makeText(
+                this,
+                "Location permission is required to show weather data",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
     private val requestNotificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
             Log.d("MainActivity", "Notification permission granted")
+            savePermissionState(PermissionState.NOTIFICATION_GRANTED)
+            requestLocationPermission()
         } else {
             Log.d("MainActivity", "Notification permission denied")
         }
     }
+
 
     @SuppressLint("MissingPermission")
     private fun getLastLocation(onLocationReceived: (Location) -> Unit) {
         fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
             location?.let {
                 // Save location for notifications
-                val weatherViewModel = ViewModelProvider(
-                    this,
-                    WeatherViewModel.Factory(RetrofitInstance.weatherRepository, "7a85369669e56294a7779bb9f8be8563")
-                )[WeatherViewModel::class.java]
-
                 weatherViewModel.saveLocationForNotifications(this)
-
                 onLocationReceived(it)
             }
         }
@@ -258,5 +350,22 @@ class MainActivity : ComponentActivity() {
             WeatherNotificationWorker.API_KEY.substring(0, 5) + "..."
         else "invalid"
         Log.d("MainActivity", "Weather API key prefix: $apiKeyPrefix")
+    }
+    // Permission state management methods
+    private fun savePermissionState(state: PermissionState) {
+        getSharedPreferences("permissions_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("permission_flow_state", state.name)
+            .apply()
+    }
+
+    private fun restorePermissionState(): PermissionState {
+        val savedState = getSharedPreferences("permissions_prefs", Context.MODE_PRIVATE)
+            .getString("permission_flow_state", PermissionState.INITIAL.name)
+        return try {
+            PermissionState.valueOf(savedState ?: PermissionState.INITIAL.name)
+        } catch (e: Exception) {
+            PermissionState.INITIAL
+        }
     }
 }

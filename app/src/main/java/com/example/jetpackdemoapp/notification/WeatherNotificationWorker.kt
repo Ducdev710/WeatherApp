@@ -19,7 +19,6 @@ import androidx.work.WorkerParameters
 import com.example.jetpackdemoapp.R
 import com.example.jetpackdemoapp.data.model.service.RetrofitInstance
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
