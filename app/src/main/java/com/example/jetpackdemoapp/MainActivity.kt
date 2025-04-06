@@ -58,7 +58,10 @@ class MainActivity : ComponentActivity() {
         /// Initialize ViewModel
         weatherViewModel = ViewModelProvider(
             this,
-            WeatherViewModel.Factory(RetrofitInstance.weatherRepository, "7a85369669e56294a7779bb9f8be8563")
+            WeatherViewModel.Factory(
+                repository = RetrofitInstance.getWeatherRepository(this),
+                apiKey = "7a85369669e56294a7779bb9f8be8563"
+            )
         )[WeatherViewModel::class.java]
 
         // Use the regular scheduler for production

@@ -1,14 +1,24 @@
 package com.example.jetpackdemoapp.data.model.repository
 
 import DailyForecastResponse
+import android.content.Context
 import com.example.jetpackdemoapp.data.model.model.HourlyForecastResponse
 import com.example.jetpackdemoapp.data.model.model.WeatherResponse
 import com.example.jetpackdemoapp.data.model.service.WeatherService
 import com.example.jetpackdemoapp.weather.screen.GeocodingResult
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.withContext
 
-class WeatherRepository(private val weatherService: WeatherService) {
+class WeatherRepository(
+    private val weatherService: WeatherService,
+    private val context: Context
+) {
+
+    private val sharedPreferences by lazy {
+        context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
+    }
 
     suspend fun getCurrentWeather(latitude: Double, longitude: Double, apiKey: String): Flow<Result<WeatherResponse>> = flow {
         try {
@@ -44,5 +54,25 @@ class WeatherRepository(private val weatherService: WeatherService) {
         } catch (e: Exception) {
             emit(Result.failure(e))
         }
+    }
+
+    /**
+     * Save temperature unit preference to SharedPreferences
+     * @param unit The temperature unit string ("CELSIUS" or "FAHRENHEIT")
+     */
+    suspend fun saveTemperatureUnit(unit: String) {
+        withContext(Dispatchers.IO) {
+            sharedPreferences.edit()
+                .putString("temperature_unit", unit)
+                .apply()
+        }
+    }
+
+    /**
+     * Retrieve the saved temperature unit preference from SharedPreferences
+     * @return The saved temperature unit string, defaults to "CELSIUS" if not found
+     */
+    suspend fun getTemperatureUnit(): String? = withContext(Dispatchers.IO) {
+        sharedPreferences.getString("temperature_unit", "CELSIUS")
     }
 }

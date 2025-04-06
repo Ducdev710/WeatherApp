@@ -83,6 +83,11 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.RadioButton
+
 @SuppressLint("DefaultLocale")
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -94,6 +99,9 @@ fun MenuScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
     val locationPreferences = remember { LocationPreferences(context) }
+
+    val temperatureUnit by viewModel.temperatureUnit.collectAsState()
+    var showMenu by remember { mutableStateOf(false) }
 
     // Store weather data for each location
     val locationWeatherData = remember { mutableStateMapOf<String, LocationWeatherData?>() }
@@ -116,6 +124,10 @@ fun MenuScreen(
         if (savedLocations.size > 1) {
             locationPreferences.saveLocations(savedLocations)
         }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.initTemperatureUnit()
     }
 
     // Get My Location weather data directly from ViewModel
@@ -212,98 +224,166 @@ fun MenuScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF1A3A4A),  // Darker blue at top
-                        Color(0xFF2D6F9E)   // Lighter blue at bottom
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF1A3A4A),  // Darker blue at top
+                            Color(0xFF2D6F9E)   // Lighter blue at bottom
+                        )
                     )
                 )
-            )
-            .padding(16.dp)
-    ) {
-        // Title and remaining UI elements stay the same
-        Text(
-            text = "Weather",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.padding(vertical = 16.dp)
-        )
+                .padding(16.dp)
+        ) {
+            // Title row with 3-dots menu
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Weather",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
 
-        // Search bar with suggestion dropdown
-        LocationSearchBar(
-            searchText = searchQuery,
-            onSearchTextChanged = {
-                searchQuery = it
-                isSearching = it.isNotEmpty()
-            },
-            onLocationSelected = { name, lat, lon ->
-                // Add to saved locations if not already saved
-                if (savedLocations.none { it.latitude == lat && it.longitude == lon }) {
-                    savedLocations.add(SavedLocation(name, lat, lon))
+                // Three dots menu button
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Settings",
+                        tint = Color.White
+                    )
                 }
-                // Navigate to weather for selected location - not a current location
-                onLocationSelect(lat, lon, false, null)
-                searchQuery = ""
-                isSearching = false
-            },
-            viewModel = viewModel
-        )
+            }
 
-        // Display saved locations when not searching
-        if (!isSearching) {
-            Text(
-                text = "Saved Locations",
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(vertical = 8.dp)
+            // Dropdown menu
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+                modifier = Modifier
+                    .background(Color(0xFF2a7599))
+            ) {
+                Text(
+                    text = "Temperature Unit",
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+
+                Divider(color = Color.White.copy(alpha = 0.3f))
+
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = temperatureUnit == WeatherViewModel.TemperatureUnit.CELSIUS,
+                                onClick = null
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Celsius (°C)", color = Color.White)
+                        }
+                    },
+                    onClick = {
+                        viewModel.setTemperatureUnit(WeatherViewModel.TemperatureUnit.CELSIUS)
+                        showMenu = false
+                    }
+                )
+
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = temperatureUnit == WeatherViewModel.TemperatureUnit.FAHRENHEIT,
+                                onClick = null
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Fahrenheit (°F)", color = Color.White)
+                        }
+                    },
+                    onClick = {
+                        viewModel.setTemperatureUnit(WeatherViewModel.TemperatureUnit.FAHRENHEIT)
+                        showMenu = false
+                    }
+                )
+            }
+
+            // Search bar with suggestion dropdown
+            LocationSearchBar(
+                searchText = searchQuery,
+                onSearchTextChanged = {
+                    searchQuery = it
+                    isSearching = it.isNotEmpty()
+                },
+                onLocationSelected = { name, lat, lon ->
+                    // Add to saved locations if not already saved
+                    if (savedLocations.none { it.latitude == lat && it.longitude == lon }) {
+                        savedLocations.add(SavedLocation(name, lat, lon))
+                    }
+                    // Navigate to weather for selected location - not a current location
+                    onLocationSelect(lat, lon, false, null)
+                    searchQuery = ""
+                    isSearching = false
+                },
+                viewModel = viewModel
             )
 
-            LazyColumn {
-                items(savedLocations) { location ->
-                    if (location.isCurrentLocation) {
-                        // Regular item for My Location (no swipe to delete)
-                        LocationItem(
-                            location = location,
-                            weatherData = locationWeatherData[location.name],
-                            onClick = {
-                                onLocationSelect(
-                                    location.latitude,
-                                    location.longitude,
-                                    location.isCurrentLocation,
-                                    location.timezone  // Pass the timezone to the navigation function
-                                )
-                            }
-                        )
-                    } else {
-                        // Swipe to delete for saved cities
-                        SwipeToDeleteLocationItem(
-                            location = location,
-                            weatherData = locationWeatherData[location.name],
-                            onClick = {
-                                onLocationSelect(
-                                    location.latitude,
-                                    location.longitude,
-                                    location.isCurrentLocation,
-                                    location.timezone  // Pass the timezone to the navigation function
-                                )
-                            },
-                            onDelete = {
-                                // Remove from saved locations
-                                savedLocations.remove(location)
-                                // Remove from weather data map
-                                locationWeatherData.remove(location.name)
-                                // Notify user
-                                Toast.makeText(context, "${location.name} removed", Toast.LENGTH_SHORT).show()
-                            }
-                        )
+            // Display saved locations when not searching
+            if (!isSearching) {
+                Text(
+                    text = "Saved Locations",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+
+                LazyColumn {
+                    items(savedLocations) { location ->
+                        if (location.isCurrentLocation) {
+                            // Regular item for My Location (no swipe to delete)
+                            LocationItem(
+                                location = location,
+                                weatherData = locationWeatherData[location.name],
+                                onClick = {
+                                    onLocationSelect(
+                                        location.latitude,
+                                        location.longitude,
+                                        location.isCurrentLocation,
+                                        location.timezone
+                                    )
+                                }
+                            )
+                        } else {
+                            // Swipe to delete for saved cities
+                            SwipeToDeleteLocationItem(
+                                location = location,
+                                weatherData = locationWeatherData[location.name],
+                                onClick = {
+                                    onLocationSelect(
+                                        location.latitude,
+                                        location.longitude,
+                                        location.isCurrentLocation,
+                                        location.timezone
+                                    )
+                                },
+                                onDelete = {
+                                    // Remove from saved locations
+                                    savedLocations.remove(location)
+                                    // Remove from weather data map
+                                    locationWeatherData.remove(location.name)
+                                    // Notify user
+                                    Toast.makeText(context, "${location.name} removed", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }

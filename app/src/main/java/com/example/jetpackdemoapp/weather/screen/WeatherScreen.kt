@@ -72,10 +72,16 @@ fun WeatherScreen(
     isCurrentLocation: Boolean = true,
     timezone: String? = null
 ) {
+    // Get the context
+    val context = LocalContext.current
+
+    // Create the repository with context
     val factory = WeatherViewModel.Factory(
-        repository = RetrofitInstance.weatherRepository,
+        repository = RetrofitInstance.getWeatherRepository(context = context),
         apiKey = "7a85369669e56294a7779bb9f8be8563"
     )
+
+    // Rest of your code remains the same
     var currentScreen by remember { mutableStateOf("location") }
 
     // Lưu vị trí ban đầu (My Location) tách biệt
@@ -87,9 +93,6 @@ fun WeatherScreen(
     var currentLongitude by remember { mutableStateOf(longitude) }
     var isMyLocation by remember { mutableStateOf(isCurrentLocation) }
     var currentTimezone by remember { mutableStateOf(timezone) }
-
-    // Context for location services
-    val context = LocalContext.current
 
     // Animation states
     val mapAlpha by animateFloatAsState(
@@ -299,7 +302,8 @@ fun WeatherScreen(
                             dailyWeatherModels = dailyForecasts,
                             formattedDateTime = formattedDateTime,
                             minTemp = minTemp,
-                            maxTemp = maxTemp
+                            maxTemp = maxTemp,
+                            viewModel = viewModel
                         )
                     }
                 }
@@ -363,24 +367,35 @@ private fun WeatherContent(
     dailyWeatherModels: List<FutureWeather>,
     formattedDateTime: String,
     minTemp: Int,
-    maxTemp: Int
+    maxTemp: Int,
+    viewModel: WeatherViewModel
 ) {
     // Extract data from currentWeather
-    val temperature = currentWeather.main.temp
     val weatherDescription = currentWeather.weather.firstOrNull()?.description?.capitalize(Locale.getDefault()) ?: "Unknown"
     val windSpeed = currentWeather.wind.speed
     val humidity = currentWeather.main.humidity
     val rainVolume = currentWeather.rain?.the1h ?: 0.0
     val cityName = currentWeather.name ?: "Unknown Location"
 
-    // Calculate derived values
-    val dewPointValue = calculateDewPoint(temperature, humidity)
-    val dewPoint = String.format("%.1f°C", dewPointValue)
+    // Get temperature unit preference
+    val temperatureUnit by viewModel.temperatureUnit.collectAsState()
+    val unitSymbol = if (temperatureUnit == WeatherViewModel.TemperatureUnit.CELSIUS) "°C" else "°F"
+
+    // Convert temperatures to the selected unit
+    val convertedTemp = viewModel.convertToCurrentUnit(currentWeather.main.temp)
+    val convertedMinTemp = viewModel.convertToCurrentUnit(minTemp.toDouble()).toInt()
+    val convertedMaxTemp = viewModel.convertToCurrentUnit(maxTemp.toDouble()).toInt()
+    val convertedFeelsLike = viewModel.convertToCurrentUnit(currentWeather.main.feels_like)
+
+    // Calculate derived values with proper units
+    val dewPointValue = calculateDewPoint(currentWeather.main.temp, humidity)
+    val convertedDewPoint = viewModel.convertToCurrentUnit(dewPointValue)
+    val dewPoint = String.format("%.1f%s", convertedDewPoint, unitSymbol)
     val pressure = "${currentWeather.main.pressure} hPa"
     val visibility = if (currentWeather.visibility != null) {
         "${currentWeather.visibility / 1000} km"
     } else "N/A"
-    val feelsLike = "${currentWeather.main.feels_like}°C"
+    val feelsLike = String.format("%.1f%s", convertedFeelsLike, unitSymbol)
 
     // UV Index (simulated based on weather conditions)
     val uvIndex = when {
@@ -451,9 +466,9 @@ private fun WeatherContent(
                     textAlign = TextAlign.Center
                 )
 
-                // Temperature
+                // Temperature - updated to use converted temperature
                 Text(
-                    text = "${temperature}°C",
+                    text = String.format("%.1f%s", convertedTemp, unitSymbol),
                     fontSize = 50.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -463,9 +478,9 @@ private fun WeatherContent(
                     textAlign = TextAlign.Center
                 )
 
-                // Highest and Lowest Temperature
+                // Highest and Lowest Temperature - updated to use converted temperatures
                 Text(
-                    text = "H:${maxTemp}°C | L:${minTemp}°C",
+                    text = "H:${convertedMaxTemp}${unitSymbol} | L:${convertedMinTemp}${unitSymbol}",
                     fontSize = 20.sp,
                     color = Color.White,
                     modifier = Modifier

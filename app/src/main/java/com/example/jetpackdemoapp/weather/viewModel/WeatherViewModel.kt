@@ -70,6 +70,78 @@ class WeatherViewModel(
         ALL_GRANTED
     }
 
+    private val _temperatureUnit = MutableStateFlow(TemperatureUnit.CELSIUS)
+    val temperatureUnit: StateFlow<TemperatureUnit> = _temperatureUnit
+
+    // Thêm enum class cho đơn vị nhiệt độ
+    enum class TemperatureUnit {
+        CELSIUS,
+        FAHRENHEIT  // The correct enum case
+    }
+
+    // Thêm hàm để chuyển đổi đơn vị nhiệt độ
+    fun setTemperatureUnit(unit: TemperatureUnit) {
+        _temperatureUnit.value = unit
+        saveTemperatureUnit(unit)
+    }
+
+    // Hàm chuyển đổi từ Celsius sang Fahrenheit
+    fun convertToCurrentUnit(celsiusTemp: Double): Double {
+        return if (_temperatureUnit.value == TemperatureUnit.FAHRENHEIT) {
+            celsiusTemp * 9/5 + 32
+        } else {
+            celsiusTemp
+        }
+    }
+
+    // Hàm lưu đơn vị nhiệt độ vào SharedPreferences
+    // Replace both existing saveTemperatureUnit methods with this one
+    private fun saveTemperatureUnit(unit: TemperatureUnit) {
+        viewModelScope.launch {
+            try {
+                repository.saveTemperatureUnit(unit.name)
+            } catch (e: Exception) {
+                Log.e("WeatherViewModel", "Error saving temperature unit", e)
+            }
+        }
+    }
+    // Add this init block right after your variable declarations
+    init {
+        loadTemperatureUnit()
+    }
+
+
+    // Hàm đọc đơn vị nhiệt độ từ SharedPreferences
+    private fun loadTemperatureUnit() {
+        viewModelScope.launch {
+            try {
+                val savedUnit = repository.getTemperatureUnit()
+                _temperatureUnit.value = savedUnit?.let {
+                    // Convert string to enum using uppercase to match enum case
+                    TemperatureUnit.valueOf(it.uppercase())
+                } ?: TemperatureUnit.CELSIUS
+            } catch (e: Exception) {
+                Log.e("WeatherViewModel", "Error loading temperature unit", e)
+                _temperatureUnit.value = TemperatureUnit.CELSIUS
+            }
+        }
+    }
+
+    // Add this to your WeatherViewModel.kt
+    fun initTemperatureUnit() {
+        viewModelScope.launch {
+            try {
+                val savedUnit = repository.getTemperatureUnit()
+                _temperatureUnit.value = savedUnit?.let {
+                    // Convert string to enum using uppercase to match enum case
+                    TemperatureUnit.valueOf(it.uppercase())
+                } ?: TemperatureUnit.CELSIUS
+            } catch (e: Exception) {
+                Log.e("WeatherViewModel", "Error loading temperature unit", e)
+                _temperatureUnit.value = TemperatureUnit.CELSIUS
+            }
+        }
+    }
     // Save state to SharedPreferences when permissions change
     fun savePermissionState(context: Context, state: PermissionFlowState) {
         _permissionFlowState.value = state

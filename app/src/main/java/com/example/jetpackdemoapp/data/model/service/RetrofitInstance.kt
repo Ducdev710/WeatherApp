@@ -1,11 +1,12 @@
 package com.example.jetpackdemoapp.data.model.service
 
+import android.content.Context
 import com.example.jetpackdemoapp.data.model.repository.WeatherRepository
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitInstance {
-    // This is the issue - your base URL doesn't include the geocoding API path
+    // Base URL for OpenWeatherMap API
     private const val BASE_URL = "https://api.openweathermap.org/"
 
     private val retrofit: Retrofit by lazy {
@@ -19,7 +20,8 @@ object RetrofitInstance {
         retrofit.create(WeatherService::class.java)
     }
 
-    val weatherRepository: WeatherRepository by lazy {
-        WeatherRepository(weatherService)
+    // Create a method that provides WeatherRepository with context
+    fun getWeatherRepository(context: Context): WeatherRepository {
+        return WeatherRepository(weatherService, context.applicationContext)
     }
 }
