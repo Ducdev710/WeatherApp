@@ -9,7 +9,7 @@ Các chức năng cơ bản:
 7. Có thể lựa chọn hiển thị độ C hoặc độ F
 # Hình ảnh giao diện:
 ![image](https://github.com/user-attachments/assets/16d1a829-39be-4a99-b188-7e92ab14e9b0)
-![image](https://github.com/user-attachments/assets/93955fe8-45f4-4776-8b2c-ac3d44ee31f1)
+![image](https://github.com/user-attachments/assets/9a7a9953-c07f-46dc-a529-840ac9abc41e)
 ![image](https://github.com/user-attachments/assets/203c75ce-08ae-4faa-b206-ad7064a7623c)
 ![image](https://github.com/user-attachments/assets/bc2a7cde-4e3a-4df8-acaf-f2636492c28a)
 ![image](https://github.com/user-attachments/assets/1126000c-02ea-414a-975b-602e51e362b3)
