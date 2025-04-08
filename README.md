@@ -8,7 +8,7 @@ Các chức năng cơ bản:
 6. Có thể lưu lại các thành phố muốn xem thời tiết để không cần tìm kiếm lại vào lần sau
 # Hình ảnh giao diện:
 ![image](https://github.com/user-attachments/assets/16d1a829-39be-4a99-b188-7e92ab14e9b0)
-![image](https://github.com/user-attachments/assets/1ff4d32c-ab74-4272-9eff-73c58bd4526b)
+![image](https://github.com/user-attachments/assets/adc64695-0c3a-4fb0-9446-377c024c3b1c)
 ![image](https://github.com/user-attachments/assets/203c75ce-08ae-4faa-b206-ad7064a7623c)
 # Công nghệ sử dụng:
 1. Ngôn ngữ: Kotlin
