@@ -112,10 +112,12 @@ fun MenuScreen(
     // Track saved locations - load from preferences
     val savedLocations = remember {
         val savedFromPrefs = locationPreferences.getSavedLocations().toMutableStateList()
-        // Always add current location at the beginning
-        savedFromPrefs.add(
-            0, SavedLocation("My Location", myLocationCoordinates.first, myLocationCoordinates.second, true)
-        )
+        // Always add current location at the beginning if it doesn't exist
+        if (savedFromPrefs.none { it.isCurrentLocation }) {
+            savedFromPrefs.add(
+                0, SavedLocation("My Location", myLocationCoordinates.first, myLocationCoordinates.second, true)
+            )
+        }
         savedFromPrefs
     }
 
@@ -357,7 +359,8 @@ fun MenuScreen(
                                         location.isCurrentLocation,
                                         location.timezone
                                     )
-                                }
+                                },
+                                viewModel = viewModel
                             )
                         } else {
                             // Swipe to delete for saved cities
@@ -373,13 +376,23 @@ fun MenuScreen(
                                     )
                                 },
                                 onDelete = {
-                                    // Remove from saved locations
-                                    savedLocations.remove(location)
+                                    // Find the index of this location in the list and remove it properly
+                                    val index = savedLocations.indexOfFirst {
+                                        it.name == location.name &&
+                                                it.latitude == location.latitude &&
+                                                it.longitude == location.longitude
+                                    }
+                                    if (index >= 0) {
+                                        savedLocations.removeAt(index)
+                                        // Update preferences immediately to persist the change
+                                        locationPreferences.saveLocations(savedLocations)
+                                    }
                                     // Remove from weather data map
                                     locationWeatherData.remove(location.name)
                                     // Notify user
                                     Toast.makeText(context, "${location.name} removed", Toast.LENGTH_SHORT).show()
-                                }
+                                },
+                                viewModel = viewModel
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -395,8 +408,12 @@ fun MenuScreen(
 fun LocationItem(
     location: SavedLocation,
     weatherData: LocationWeatherData?,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    viewModel: WeatherViewModel
 ) {
+    // Get temperature unit
+    val temperatureUnit by viewModel.temperatureUnit.collectAsState()
+
     // Get current time in the location's timezone
     val currentTime = remember(location.timezone) {
         try {
@@ -424,7 +441,6 @@ fun LocationItem(
         ),
         shape = RoundedCornerShape(8.dp),
     ) {
-        // Rest of the card content remains unchanged
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -449,18 +465,23 @@ fun LocationItem(
                 )
             }
 
-            // Temperature info
+            // Temperature info with conversion
             if (weatherData != null) {
                 Column(horizontalAlignment = Alignment.End) {
+                    // Convert temperatures according to selected unit
+                    val convertedCurrentTemp = viewModel.convertToCurrentUnit(weatherData.currentTemp.toDouble()).toInt()
+                    val convertedHighTemp = viewModel.convertToCurrentUnit(weatherData.highTemp.toDouble()).toInt()
+                    val convertedLowTemp = viewModel.convertToCurrentUnit(weatherData.lowTemp.toDouble()).toInt()
+
                     Text(
-                        text = "${weatherData.currentTemp}°",
+                        text = "${convertedCurrentTemp}°",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
 
                     Text(
-                        text = "H:${weatherData.highTemp}° L:${weatherData.lowTemp}°",
+                        text = "H:${convertedHighTemp}° L:${convertedLowTemp}°",
                         fontSize = 14.sp,
                         color = Color.White.copy(alpha = 0.7f)
                     )
@@ -639,6 +660,10 @@ fun WeatherBottomSheet(
     val dailyForecastState = remember { mutableStateOf<DailyForecastResponse?>(null) }
     val isLoading = remember { mutableStateOf(true) }
 
+    // Get temperature unit from viewModel
+    val temperatureUnit by viewModel.temperatureUnit.collectAsState()
+    val unitSuffix = if (temperatureUnit == WeatherViewModel.TemperatureUnit.CELSIUS) "°C" else "°F"
+
     // Fetch weather for selected city
     LaunchedEffect(city) {
         isLoading.value = true
@@ -656,7 +681,7 @@ fun WeatherBottomSheet(
     }
 
     // Calculate min and max temps from forecast
-    val (minTemp, maxTemp) = remember(dailyForecastState.value, weatherState.value) {
+    val (minTemp, maxTemp) = remember(dailyForecastState.value, weatherState.value, temperatureUnit) {
         val forecast = dailyForecastState.value
         val weather = weatherState.value
 
@@ -667,15 +692,24 @@ fun WeatherBottomSheet(
                 date.toLocalDate() == LocalDateTime.now().toLocalDate()
             }
 
-            val min = todayForecasts.minOfOrNull { it.main.temp_min }?.toInt()
-                ?: weather?.main?.temp_min?.toInt() ?: 0
+            val min = todayForecasts.minOfOrNull { it.main.temp_min }?.let {
+                viewModel.convertToCurrentUnit(it.toDouble()).toInt()
+            } ?: weather?.main?.temp_min?.let {
+                viewModel.convertToCurrentUnit(it.toDouble()).toInt()
+            } ?: 0
 
-            val max = todayForecasts.maxOfOrNull { it.main.temp_max }?.toInt()
-                ?: weather?.main?.temp_max?.toInt() ?: 0
+            val max = todayForecasts.maxOfOrNull { it.main.temp_max }?.let {
+                viewModel.convertToCurrentUnit(it.toDouble()).toInt()
+            } ?: weather?.main?.temp_max?.let {
+                viewModel.convertToCurrentUnit(it.toDouble()).toInt()
+            } ?: 0
 
             Pair(min, max)
         } else if (weather != null) {
-            Pair(weather.main.temp_min.toInt(), weather.main.temp_max.toInt())
+            Pair(
+                viewModel.convertToCurrentUnit(weather.main.temp_min.toDouble()).toInt(),
+                viewModel.convertToCurrentUnit(weather.main.temp_max.toDouble()).toInt()
+            )
         } else {
             Pair(0, 0)
         }
@@ -747,6 +781,10 @@ fun WeatherBottomSheet(
                 }
             } else {
                 weatherState.value?.let { weather ->
+                    // Convert temperatures according to selected unit
+                    val currentTemp = viewModel.convertToCurrentUnit(weather.main.temp.toDouble()).toInt()
+                    val feelsLikeTemp = viewModel.convertToCurrentUnit(weather.main.feels_like.toDouble()).toInt()
+
                     // Current temperature and conditions
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -754,7 +792,7 @@ fun WeatherBottomSheet(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "${weather.main.temp.toInt()}°C",
+                                text = "$currentTemp$unitSuffix",
                                 fontSize = 64.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -768,7 +806,7 @@ fun WeatherBottomSheet(
                             )
 
                             Text(
-                                text = "Feels like ${weather.main.feels_like.toInt()}°C",
+                                text = "Feels like $feelsLikeTemp$unitSuffix",
                                 fontSize = 16.sp,
                                 color = Color.White.copy(alpha = 0.7f)
                             )
@@ -816,7 +854,7 @@ fun WeatherBottomSheet(
 
                     // High and low temperatures using calculated values
                     Text(
-                        text = "High: ${maxTemp}°C  Low: ${minTemp}°C",
+                        text = "High: $maxTemp$unitSuffix  Low: $minTemp$unitSuffix",
                         fontSize = 16.sp,
                         color = Color.White,
                         modifier = Modifier.padding(bottom = 24.dp)
@@ -886,7 +924,8 @@ fun SwipeToDeleteLocationItem(
     location: SavedLocation,
     weatherData: LocationWeatherData?,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    viewModel: WeatherViewModel
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         positionalThreshold = { totalDistance -> totalDistance * 0.5f },
@@ -941,7 +980,8 @@ fun SwipeToDeleteLocationItem(
             LocationItem(
                 location = location,
                 weatherData = weatherData,
-                onClick = onClick
+                onClick = onClick,
+                viewModel = viewModel
             )
         }
     )

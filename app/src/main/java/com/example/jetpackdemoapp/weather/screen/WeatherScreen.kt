@@ -214,6 +214,17 @@ fun WeatherScreen(
             MapScreen(
                 latitude = currentLatitude,
                 longitude = currentLongitude,
+                cityName = when {
+                    isMyLocation -> "My Location"
+                    currentWeatherState is WeatherUiState.Success<*> ->
+                        (currentWeatherState as WeatherUiState.Success<WeatherResponse>).data.name
+                    else -> null
+                },
+                currentTemp = if (currentWeatherState is WeatherUiState.Success<*>) {
+                    val weatherData = (currentWeatherState as WeatherUiState.Success<WeatherResponse>).data
+                    viewModel.convertToCurrentUnit(weatherData.main.temp).toInt()
+                } else null,
+                temperatureUnit = viewModel.temperatureUnit.collectAsState().value,
                 onClose = {
                     currentScreen = "location"
                 }
@@ -593,7 +604,7 @@ private fun WeatherContent(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(hourlyWeatherModels) { hourlyWeather ->
-                        HourlyItem(hourlyWeather)
+                        HourlyItem(hourlyWeather, viewModel)
                     }
                 }
             }
@@ -623,7 +634,7 @@ private fun WeatherContent(
 
             // 7-day forecast items
             items(dailyWeatherModels) { item ->
-                FutureItem(item)
+                FutureItem(item, viewModel)
             }
         }
     }

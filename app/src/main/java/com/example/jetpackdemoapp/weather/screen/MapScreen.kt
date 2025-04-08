@@ -1,5 +1,6 @@
 package com.example.jetpackdemoapp.weather.screen
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.preference.PreferenceManager
 import androidx.compose.foundation.background
@@ -25,6 +26,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.jetpackdemoapp.R
+import com.example.jetpackdemoapp.weather.viewModel.WeatherViewModel
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -32,8 +34,16 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 
 
+@SuppressLint("UseCompatLoadingForDrawables")
 @Composable
-fun MapScreen(latitude: Double, longitude: Double, onClose: () -> Unit) {
+fun MapScreen(
+    latitude: Double,
+    longitude: Double,
+    cityName: String?,
+    currentTemp: Int?,
+    temperatureUnit: WeatherViewModel.TemperatureUnit,
+    onClose: () -> Unit
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -79,8 +89,16 @@ fun MapScreen(latitude: Double, longitude: Double, onClose: () -> Unit) {
                 val marker = Marker(map).apply {
                     setPosition(position)
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    title = "Current Location"
-                    snippet = "Weather data location"
+                    title = cityName ?: "Current Location" // Use city name if available
+
+                    // Display current temperature in the snippet
+                    val tempDisplay = if (currentTemp != null) {
+                        val unitSuffix = if (temperatureUnit == WeatherViewModel.TemperatureUnit.CELSIUS) "°C" else "°F"
+                        "Current temperature: $currentTemp$unitSuffix"
+                    } else {
+                        "Weather data unavailable"
+                    }
+                    snippet = tempDisplay
 
                     // Custom icon
                     val icon = context.resources.getDrawable(R.drawable.baseline_location_pin_24, null)

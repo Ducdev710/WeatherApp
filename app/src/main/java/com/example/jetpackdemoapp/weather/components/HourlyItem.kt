@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.jetpackdemoapp.data.model.model.HourlyWeather
 import com.example.jetpackdemoapp.weather.getDrawableResourceId
+import com.example.jetpackdemoapp.weather.viewModel.WeatherViewModel
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -32,12 +35,13 @@ import java.time.format.DateTimeFormatter
 @SuppressLint("DefaultLocale")
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun FutureModelViewHolder(model: HourlyWeather) {
+fun FutureModelViewHolder(model: HourlyWeather, viewModel: WeatherViewModel) {
     // Convert timestamp to human-readable hour
     val hour = LocalDateTime.ofEpochSecond(model.dt, 0, ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("ha"))
 
-    // Format temperature to display only one decimal place
-    val formattedTemp = String.format("%.1f", model.temp)
+    // Convert temperature to current unit and format with one decimal place
+    val convertedTemp = viewModel.convertToCurrentUnit(model.temp)
+    val formattedTemp = String.format("%.1f", convertedTemp)
 
     Column(
         modifier = Modifier
@@ -84,7 +88,7 @@ fun FutureModelViewHolder(model: HourlyWeather) {
 @SuppressLint("DefaultLocale")
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun HourlyItem(model: HourlyWeather) {
+fun HourlyItem(model: HourlyWeather, viewModel: WeatherViewModel) {
     // Simply delegate to your existing FutureModelViewHolder
-    FutureModelViewHolder(model)
+    FutureModelViewHolder(model, viewModel)
 }

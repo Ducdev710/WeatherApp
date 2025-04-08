@@ -71,21 +71,21 @@ object WeatherWorkScheduler {
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun calculateInitialDelay(): Long {
-        return 30 * 1000L
-//        val now = LocalDateTime.now()
-//        val sevenAM = LocalDateTime.of(
-//            now.toLocalDate(),
-//            LocalTime.of(7, 0)
-//        )
-//
-//        // If 7AM today has already passed, schedule for 7AM tomorrow
-//        var target = if (now.isAfter(sevenAM)) {
-//            sevenAM.plusDays(1)
-//        } else {
-//            sevenAM
-//        }
-//
-//        return Duration.between(now, target).toMillis()
+        //return 30 * 1000L
+        val now = LocalDateTime.now()
+        val sevenAM = LocalDateTime.of(
+            now.toLocalDate(),
+            LocalTime.of(7, 0)
+        )
+
+        // If 7AM today has already passed, schedule for 7AM tomorrow
+        val target = if (now.isAfter(sevenAM)) {
+            sevenAM.plusDays(1)
+        } else {
+            sevenAM
+        }
+
+        return Duration.between(now, target).toMillis()
     }
 
     fun scheduleDailyWeatherNotificationForTesting(context: Context) {

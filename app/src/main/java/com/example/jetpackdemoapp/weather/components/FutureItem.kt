@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,9 +21,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.jetpackdemoapp.data.model.model.FutureWeather
 import com.example.jetpackdemoapp.weather.getDrawableResourceId
+import com.example.jetpackdemoapp.weather.viewModel.WeatherViewModel
 
 @Composable
-fun FutureItem(item: FutureWeather) {
+fun FutureItem(item: FutureWeather, viewModel: WeatherViewModel) {
+    // Get temperature unit
+    val temperatureUnit by viewModel.temperatureUnit.collectAsState()
+    val unitSymbol = if (temperatureUnit == WeatherViewModel.TemperatureUnit.CELSIUS) "°C" else "°F"
+
+    // Convert temperatures
+    val convertedHighTemp = viewModel.convertToCurrentUnit(item.highTemp.toDouble()).toInt()
+    val convertedLowTemp = viewModel.convertToCurrentUnit(item.lowTemp.toDouble()).toInt()
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -58,9 +69,9 @@ fun FutureItem(item: FutureWeather) {
             modifier = Modifier.weight(1f)
         )
 
-        // High temperature - with right alignment
+        // High temperature - with right alignment and converted unit
         Text(
-            text = "${item.highTemp}°",
+            text = "$convertedHighTemp°",
             color = Color.White,
             fontSize = 14.sp,
             textAlign = TextAlign.End,
@@ -70,9 +81,9 @@ fun FutureItem(item: FutureWeather) {
         // Space between temperatures
         androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(8.dp))
 
-        // Low temperature - with right alignment
+        // Low temperature - with right alignment and converted unit
         Text(
-            text = "${item.lowTemp}°",
+            text = "$convertedLowTemp°",
             color = Color.White,
             fontSize = 14.sp,
             textAlign = TextAlign.End,
