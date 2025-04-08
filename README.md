@@ -11,7 +11,7 @@ Các chức năng cơ bản:
 ![image](https://github.com/user-attachments/assets/16d1a829-39be-4a99-b188-7e92ab14e9b0)
 ![image](https://github.com/user-attachments/assets/9a7a9953-c07f-46dc-a529-840ac9abc41e)
 ![image](https://github.com/user-attachments/assets/203c75ce-08ae-4faa-b206-ad7064a7623c)
-![image](https://github.com/user-attachments/assets/bc2a7cde-4e3a-4df8-acaf-f2636492c28a)
+![image](https://github.com/user-attachments/assets/c142e814-d534-4d4e-86d1-f9fee87edb19)
 ![image](https://github.com/user-attachments/assets/1126000c-02ea-414a-975b-602e51e362b3)
 ![image](https://github.com/user-attachments/assets/b87b403c-fcaf-4715-bbb0-fed2c57088cc)
 # Công nghệ sử dụng:
