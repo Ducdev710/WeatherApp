@@ -6,10 +6,14 @@ Các chức năng cơ bản:
 4. Gửi thông báo về thời tiết hàng ngày 
 5. Tìm kiếm và xem thời tiết của các thành phố trên thế giới(Hiển thị gợi ý khi người dùng nhập để tìm kiếm)
 6. Có thể lưu lại các thành phố muốn xem thời tiết để không cần tìm kiếm lại vào lần sau
+7. Có thể lựa chọn hiển thị độ C hoặc độ F
 # Hình ảnh giao diện:
 ![image](https://github.com/user-attachments/assets/16d1a829-39be-4a99-b188-7e92ab14e9b0)
 ![image](https://github.com/user-attachments/assets/adc64695-0c3a-4fb0-9446-377c024c3b1c)
 ![image](https://github.com/user-attachments/assets/203c75ce-08ae-4faa-b206-ad7064a7623c)
+![image](https://github.com/user-attachments/assets/bc2a7cde-4e3a-4df8-acaf-f2636492c28a)
+![image](https://github.com/user-attachments/assets/1126000c-02ea-414a-975b-602e51e362b3)
+![image](https://github.com/user-attachments/assets/b87b403c-fcaf-4715-bbb0-fed2c57088cc)
 # Công nghệ sử dụng:
 1. Ngôn ngữ: Kotlin
 2. Framework: Jetpack Compose
