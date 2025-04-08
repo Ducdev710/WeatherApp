@@ -7,8 +7,7 @@ Các chức năng cơ bản:
 5. Tìm kiếm và xem thời tiết của các thành phố trên thế giới(Hiển thị gợi ý khi người dùng nhập để tìm kiếm)
 6. Có thể lưu lại các thành phố muốn xem thời tiết để không cần tìm kiếm lại vào lần sau
 # Hình ảnh giao diện:
-![image](https://github.com/user-attachments/assets/f70348b7-55dd-452e-b98e-1c57de5f3623)
-![image](https://github.com/user-attachments/assets/49215353-cb22-439f-b03b-4163435d5cd6)
+![image](https://github.com/user-attachments/assets/16d1a829-39be-4a99-b188-7e92ab14e9b0)
 ![image](https://github.com/user-attachments/assets/1ff4d32c-ab74-4272-9eff-73c58bd4526b)
 ![image](https://github.com/user-attachments/assets/203c75ce-08ae-4faa-b206-ad7064a7623c)
 # Công nghệ sử dụng:
